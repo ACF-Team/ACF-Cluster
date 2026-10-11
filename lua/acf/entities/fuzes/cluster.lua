@@ -1,6 +1,6 @@
 local Classes = ACF.Classes
 
-Classes.DefineClass("ACF.Missiles.Fuze.Cluster", "ACF.Missiles.Fuze.Optical", function(CLASS)
+Classes.DefineClass("ACF.Missiles.Fuze.Cluster", "ACF.Missiles.Fuze.Optical", function(CLASS, BASE)
     CLASS.Name = "Cluster"
     CLASS.Description = "This fuze fires a beam directly ahead and releases bomblets when the beam hits something close by. Distance in inches."
 
@@ -10,12 +10,21 @@ Classes.DefineClass("ACF.Missiles.Fuze.Cluster", "ACF.Missiles.Fuze.Optical", fu
     CLASS.MinBomblets = 1
     CLASS.MaxBomblets = 30
 
-    if SERVER then
-        function CLASS.PrepareBullet(Class, BulletData)
+    if CLIENT then
+        local ClusterText = "Bomblets : %s\n"
+
+        function CLASS:AddMenuControls(Base, ToolData, Ammo, BulletData, ...)
+            BASE.AddMenuControls(self, Base, ToolData, Ammo, BulletData, ...)
+
+            local Bomblets = math.Clamp(math.floor(BulletData.ProjMass / BulletData.Caliber), self.MinBomblets, self.MaxBomblets)
+            Base:AddLabel(ClusterText:format(Bomblets))
+        end
+    else
+        function CLASS:PrepareBullet(BulletData)
             local Caliber  = BulletData.Caliber
             local ProjMass = BulletData.ProjMass
             local Rows     = math.max(1, math.floor(ProjMass / Caliber))
-            local Count    = math.Clamp(Rows, Class.MinBomblets, Class.MaxBomblets)
+            local Count    = math.Clamp(Rows, self.MinBomblets, self.MaxBomblets)
 
             local BombletData = table.Copy(BulletData)
 
