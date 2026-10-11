@@ -11,18 +11,43 @@ Classes.DefineClass("ACF.Missiles.Fuze.Cluster", "ACF.Missiles.Fuze.Optical", fu
     CLASS.MaxBomblets = 30
 
     if SERVER then
-        local function PrepareBullet(Class, BulletData)
+        function CLASS.PrepareBullet(Class, BulletData)
             local Caliber  = BulletData.Caliber
             local ProjMass = BulletData.ProjMass
             local Rows     = math.max(1, math.floor(ProjMass / Caliber))
+            local Count    = math.Clamp(Rows, Class.MinBomblets, Class.MaxBomblets)
 
             local BombletData = table.Copy(BulletData)
 
             BombletData.WeaponType = "ACF.Guns.Cannon"
             BombletData.Caliber    = Caliber
-            BombletData.ProjMass   = ProjMass / Rows
             BombletData.PropMass   = 0
-            BombletData.Bomblets   = math.Clamp(Rows, Class.MinBomblets, Class.MaxBomblets)
+            BombletData.Bomblets   = Count
+
+            -- Split every mass so the cluster carries the same total as the parent shell
+            for _, Key in ipairs({ "ProjMass", "FillerMass", "BoomFillerMass", "CasingMass", "LinerMass", "JetMass" }) do
+                if BombletData[Key] then
+                    BombletData[Key] = BombletData[Key] / Count
+                end
+            end
+
+            if BombletData.ProjMass and BombletData.ProjArea then
+                BombletData.DragCoef = BombletData.ProjArea * 0.0001 / BombletData.ProjMass
+            end
+
+            BombletData.CartMass = BombletData.ProjMass -- No propellant
+
+            -- HEAT: jet breakup scales with JetMass^(1/3), jet velocities stay the same
+            if BombletData.BreakupTime then
+                local Scale = Count ^ (-1 / 3)
+
+                BombletData.BreakupTime = BombletData.BreakupTime * Scale
+                BombletData.BreakupDist = BombletData.BreakupDist * Scale
+
+                if BombletData.JetMass then
+                    BombletData.JetArea = (BombletData.JetMass / ACF.CopperDensity) / (BombletData.BreakupDist * 100)
+                end
+            end
 
             return BombletData
         end
@@ -31,7 +56,7 @@ Classes.DefineClass("ACF.Missiles.Fuze.Cluster", "ACF.Missiles.Fuze.Optical", fu
             local RoundData = Entity.RoundData
             if not RoundData then return end
 
-            local Bullet      = PrepareBullet(self, BulletData)
+            local Bullet      = self:PrepareBullet(BulletData)
             local Bomblets    = Bullet.Bomblets
             local Velocity    = BulletData.Flight
 
